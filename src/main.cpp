@@ -26,6 +26,7 @@
 
 #include <iostream>
 #include <string>
+#include <memory>
 
 #include <actors/Actor.h>
 
@@ -49,9 +50,10 @@ public:
 int main() {
 
     StringIntActor actor;
+    ActorRef<string, int>& actorRef = actor;
 
-    actor.send(string("abc"));
-    actor.send(1);
+    actorRef.send(string("abc"));
+    actorRef.send(1);
 
     actor.handleNow();
     actor.handleWithin(milliseconds(100));

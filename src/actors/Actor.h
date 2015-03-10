@@ -27,32 +27,38 @@
 #ifndef CPP_CHANNEL_CHANNEL_H_
 #define CPP_CHANNEL_CHANNEL_H_
 
-#include <vector>
-#include <mutex>
 #include <chrono>
+#include <condition_variable>
+#include <mutex>
+#include <vector>
 
 namespace actors {
 
 template<class T>
-class Buffer {
+class ActorMessageBuffer {
 public:
 
-    Buffer() {
+    ActorMessageBuffer() {
     }
 
-    virtual ~Buffer() {
+    virtual ~ActorMessageBuffer() {
     }
 
-    void flush();
+protected:
 
     virtual void handle(T& message) = 0;
 
 protected:
-    void doSend(const T& data) {
+
+    void handleTrampoline(T& message) {
+        handle(message);
+    }
+
+    void send(const T& data) {
         items_.push_back(data);
     }
 
-    void doSend(T&& data) {
+    void send(T&& data) {
         items_.push_back(std::move(data));
     }
 
@@ -60,60 +66,85 @@ protected:
 
 };
 
+template<class ... MsgType>
+class ActorRef: public ActorMessageBuffer<MsgType> ... {
+public:
+
+    ActorRef(
+            std::mutex& mutex,
+            int& message_count,
+            std::condition_variable& condition) :
+                    mutex_(mutex),
+                    message_count_(message_count),
+                    condition_(condition) {
+    }
+
+    template<typename T>
+    void send(const T& t) {
+        std::unique_lock<std::mutex> lock(mutex_);
+        this->ActorMessageBuffer<T>::send(t);
+        message_count_++;
+        condition_.notify_all();
+    }
+
+    template<typename T>
+    void send(T&& t) {
+        std::unique_lock<std::mutex> lock(mutex_);
+        this->ActorMessageBuffer<T>::send(t);
+        message_count_++;
+        condition_.notify_all();
+    }
+
+private:
+    std::mutex& mutex_;
+    int& message_count_;
+    std::condition_variable& condition_;
+
+};
+
 template<class ... MsgTypes>
-class Actor: public Buffer<MsgTypes> ... {
+class Actor: public ActorRef<MsgTypes ...> {
 public:
 
     Actor() :
+                    ActorRef<MsgTypes...>(mutex_, message_count_, condition_),
                     message_count_(0) {
     }
 
     virtual ~Actor() {
     }
 
-    template<typename T>
-    void send(const T& t) {
-        std::unique_lock<std::mutex> lock(mutex_);
-        this->Buffer<T>::doSend(t);
-    }
-
-    template<typename T>
-    void send(T&& t) {
-        std::unique_lock<std::mutex> lock(mutex_);
-        this->Buffer<T>::doSend(t);
-    }
-
     void handleNow() {
         std::unique_lock<std::mutex> lock(mutex_);
-        flush(this->Buffer<MsgTypes>::items_...);
+        handle(this->ActorMessageBuffer<MsgTypes>::items_...);
         message_count_ = 0;
     }
 
     template<typename _Rep, typename _Period>
-    void handleWithin(const std::chrono::duration<_Rep, _Period>& __d) {
+    void handleWithin(const std::chrono::duration<_Rep, _Period>& timeout) {
         std::unique_lock<std::mutex> lock(mutex_);
-        if (message_count_ == 0) {
-            // Do some waiting
-        }
-        flush(this->Buffer<MsgTypes>::items_...);
+        if (message_count_ == 0)
+            condition_.wait_for(lock, timeout);
+        handle(this->ActorMessageBuffer<MsgTypes>::items_...);
         message_count_ = 0;
     }
 
 private:
     std::mutex mutex_;
     int message_count_;
+    std::condition_variable condition_;
 
     template<typename T>
-    void flush(std::vector<T>& items) {
+    void handle(std::vector<T>& items) {
         for (T& item : items)
-            static_cast<Buffer<T>*>(this)->handle(item);
+            this->ActorMessageBuffer<T>::handleTrampoline(item);
         items.clear();
     }
 
     template<typename Head, typename ... Tail>
-    void flush(std::vector<Head>& head, std::vector<Tail>& ... tail) {
-        flush(head);
-        flush(tail...);
+    void handle(std::vector<Head>& head, std::vector<Tail>& ... tail) {
+        handle(head);
+        handle(tail...);
     }
 
 };
