@@ -1,2 +1,2 @@
-# cpp_actors
-Funky c++ (11) actors
+# cpp_channel
+Cpp channels Yay
