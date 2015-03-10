@@ -24,12 +24,10 @@
  *
  */
 
+#include <actors/Actor.h>
+#include <actors/IActorRef.h>
 #include <iostream>
 #include <string>
-#include <memory>
-
-#include <thread>
-#include <actors/Actor.h>
 
 using namespace std;
 using namespace chrono;
@@ -52,33 +50,17 @@ int main() {
 
     StringIntActor actor;
 
-    ActorRef<string, int>& actorRef = actor;
-
     IActorRef<string>& stringActor = actor;
     IActorRef<int>& intActor = actor;
+    IActorRef<string, int>& ref2 = actor;
 
-    auto senderThread = std::thread([&actorRef] {
-        actorRef.send(string("abc"));
-        actorRef.send(1);
-    });
+    stringActor.send(string("abc"));
+    intActor.send(1);
 
-    auto intSenderThread = std::thread([&intActor] {
-        intActor.send(123);
-    });
+    ref2.send(string("ABC"));
+    ref2.send(2);
 
-    auto stringSenderThread = std::thread([&stringActor] {
-        stringActor.send("123");
-    });
-
-    this_thread::sleep_for(milliseconds(100));
-    auto actorThread = std::thread([&actor] {
-        actor.handleNow();
-    });
-
-    actorThread.join();
-    senderThread.join();
-    intSenderThread.join();
-    stringSenderThread.join();
+    actor.handleNow();
 
 }
 

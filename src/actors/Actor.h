@@ -37,7 +37,7 @@
 namespace actors {
 
 template<class T>
-class ActorBase: public IActorRef<T> {
+class ActorBase: public virtual IActorRef<T> {
 public:
 
     ActorBase(
@@ -83,46 +83,12 @@ protected:
 
 };
 
-template<class ... MsgType>
-class ActorRef: public ActorBase<MsgType> ... {
-public:
-
-    ActorRef(
-            std::mutex& mutex,
-            int& message_count,
-            std::condition_variable& condition) :
-                    ActorBase<MsgType>(
-                            mutex,
-                            message_count,
-                            condition) ...,
-                    mutex_(mutex),
-                    message_count_(message_count),
-                    condition_(condition) {
-    }
-
-    template<typename T>
-    void send(const T& t) {
-        this->ActorBase<T>::send(t);
-    }
-
-    template<typename T>
-    void send(T&& t) {
-        this->ActorBase<T>::send(t);
-    }
-
-private:
-    std::mutex& mutex_;
-    int& message_count_;
-    std::condition_variable& condition_;
-
-};
-
-template<class ... MsgTypes>
-class Actor: public ActorRef<MsgTypes ...> {
+template<class ... T_Msgs>
+class Actor: public ActorBase<T_Msgs> ..., public virtual IActorRef<T_Msgs...> {
 public:
 
     Actor() :
-                    ActorRef<MsgTypes...>(mutex_, message_count_, condition_),
+                    ActorBase<T_Msgs>(mutex_, message_count_, condition_) ...,
                     message_count_(0) {
     }
 
@@ -131,7 +97,7 @@ public:
 
     void handleNow() {
         std::unique_lock<std::mutex> lock(mutex_);
-        handle(this->ActorBase<MsgTypes>::items_...);
+        handle(this->ActorBase<T_Msgs>::items_...);
         message_count_ = 0;
     }
 
@@ -140,7 +106,7 @@ public:
         std::unique_lock<std::mutex> lock(mutex_);
         if (message_count_ == 0)
             condition_.wait_for(lock, timeout);
-        handle(this->ActorBase<MsgTypes>::items_...);
+        handle(this->ActorBase<T_Msgs>::items_...);
         message_count_ = 0;
     }
 
