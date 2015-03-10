@@ -102,9 +102,7 @@ public:
 
     void handleNow() {
         std::unique_lock<std::mutex> lock(mutex_);
-        for (auto& call : calls_)
-            call();
-        calls_.clear();
+        flush();
     }
 
     template<typename _Rep, typename _Period>
@@ -112,12 +110,19 @@ public:
         std::unique_lock<std::mutex> lock(mutex_);
         if (calls_.empty())
             condition_.wait_for(lock, timeout);
+        flush();
     }
 
 private:
     std::mutex mutex_;
     std::condition_variable condition_;
     std::vector<std::function<void()>> calls_;
+
+    void flush() {
+        for (auto& call : calls_)
+            call();
+        calls_.clear();
+    }
 
 };
 
