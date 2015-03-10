@@ -30,16 +30,31 @@
 #include <actors/Actor.h>
 
 using namespace std;
+using namespace chrono;
 using namespace actors;
+
+class StringIntActor: public Actor<string, int> {
+public:
+
+    void handle(string& message) override {
+        cout << "Got string: " << message << endl;
+    }
+
+    void handle(int& message) override {
+        cout << "Got int: " << message << endl;
+    }
+
+};
 
 int main() {
 
-    Actor<string, int> a;
+    StringIntActor actor;
 
-    a.send(string("abc"));
-    a.send(1);
+    actor.send(string("abc"));
+    actor.send(1);
 
-    vector<string> messages = a.getAll<string>();
- //   a.give(123);
+    actor.handleNow();
+    actor.handleWithin(milliseconds(100));
+
 }
 

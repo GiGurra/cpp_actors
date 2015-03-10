@@ -29,11 +29,24 @@
 
 #include <vector>
 #include <mutex>
+#include <chrono>
 
 namespace actors {
 
 template<class T>
 class Buffer {
+public:
+
+    Buffer() {
+    }
+
+    virtual ~Buffer() {
+    }
+
+    void flush();
+
+    virtual void handle(T& message) = 0;
+
 protected:
     void doSend(const T& data) {
         items_.push_back(data);
@@ -43,11 +56,6 @@ protected:
         items_.push_back(std::move(data));
     }
 
-    std::vector<T> doGet() {
-        return std::vector<T>();
-    }
-
-private:
     std::vector<T> items_;
 
 };
@@ -56,7 +64,8 @@ template<class ... MsgTypes>
 class Actor: public Buffer<MsgTypes> ... {
 public:
 
-    Actor() {
+    Actor() :
+                    message_count_(0) {
     }
 
     virtual ~Actor() {
@@ -74,14 +83,38 @@ public:
         this->Buffer<T>::doSend(t);
     }
 
-    template<typename T>
-    std::vector<T> getAll() {
+    void handleNow() {
         std::unique_lock<std::mutex> lock(mutex_);
-        return this->Buffer<T>::doGet();
+        flush(this->Buffer<MsgTypes>::items_...);
+        message_count_ = 0;
+    }
+
+    template<typename _Rep, typename _Period>
+    void handleWithin(const std::chrono::duration<_Rep, _Period>& __d) {
+        std::unique_lock<std::mutex> lock(mutex_);
+        if (message_count_ == 0) {
+            // Do some waiting
+        }
+        flush(this->Buffer<MsgTypes>::items_...);
+        message_count_ = 0;
     }
 
 private:
     std::mutex mutex_;
+    int message_count_;
+
+    template<typename T>
+    void flush(std::vector<T>& items) {
+        for (T& item : items)
+            static_cast<Buffer<T>*>(this)->handle(item);
+        items.clear();
+    }
+
+    template<typename Head, typename ... Tail>
+    void flush(std::vector<Head>& head, std::vector<Tail>& ... tail) {
+        flush(head);
+        flush(tail...);
+    }
 
 };
 
