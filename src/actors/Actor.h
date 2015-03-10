@@ -72,6 +72,13 @@ protected:
         condition_.notify_all();
     }
 
+private:
+    std::vector<T> items_;
+    std::mutex& mutex_;
+    std::condition_variable& condition_;
+    std::vector<std::function<void()>>& calls_;
+    int call_offs_;
+
     void handleOne() {
         handle(items_[call_offs_++]);
         if (call_offs_ == items_.size()) {
@@ -79,13 +86,6 @@ protected:
             items_.clear();
         }
     }
-
-private:
-    std::vector<T> items_;
-    std::mutex& mutex_;
-    std::condition_variable& condition_;
-    std::vector<std::function<void()>>& calls_;
-    int call_offs_;
 
 };
 
