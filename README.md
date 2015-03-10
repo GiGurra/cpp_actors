@@ -1,2 +1,2 @@
-# cpp_channel
-Cpp channels Yay
+# cpp_actors
+Cpp actors Yay
