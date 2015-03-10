@@ -27,36 +27,62 @@
 #ifndef CPP_CHANNEL_CHANNEL_H_
 #define CPP_CHANNEL_CHANNEL_H_
 
-#include <channel/Sink.h>
-#include <channel/Source.h>
+#include <vector>
+#include <mutex>
 
-namespace channel {
+namespace actors {
 
-template<typename MessageType>
-class Channel {
+template<class T>
+class Buffer {
+protected:
+    void doSend(const T& data) {
+        items_.push_back(data);
+    }
+
+    void doSend(T&& data) {
+        items_.push_back(std::move(data));
+    }
+
+    std::vector<T> doGet() {
+        return std::vector<T>();
+    }
+
+private:
+    std::vector<T> items_;
+
+};
+
+template<class ... MsgTypes>
+class Actor: public Buffer<MsgTypes> ... {
 public:
-    Channel() :
-                    source_(mutex_, condition_, messages_),
-                    sink_(mutex_, condition_, messages_) {
+
+    Actor() {
     }
 
-    Source<MessageType>& source() {
-        return source_;
+    virtual ~Actor() {
     }
 
-    Sink<MessageType>& sink() {
-        return sink_;
+    template<typename T>
+    void send(const T& t) {
+        std::unique_lock<std::mutex> lock(mutex_);
+        this->Buffer<T>::doSend(t);
+    }
+
+    template<typename T>
+    void send(T&& t) {
+        std::unique_lock<std::mutex> lock(mutex_);
+        this->Buffer<T>::doSend(t);
+    }
+
+    template<typename T>
+    std::vector<T> getAll() {
+        std::unique_lock<std::mutex> lock(mutex_);
+        return this->Buffer<T>::doGet();
     }
 
 private:
     std::mutex mutex_;
-    std::condition_variable condition_;
-    std::vector<MessageType> messages_;
-    Source<MessageType> source_;
-    Sink<MessageType> sink_;
 
-    Channel(const Channel& other) = delete;
-    Channel& operator=(const Channel& other) = delete;
 };
 
 }
