@@ -31,6 +31,7 @@
 #include <condition_variable>
 #include <mutex>
 #include <vector>
+#include <functional>
 
 #include <actors/IActorRef.h>
 
@@ -42,11 +43,12 @@ public:
 
     ActorBase(
             std::mutex& mutex,
-            int& message_count,
-            std::condition_variable& condition) :
+            std::condition_variable& condition,
+            std::vector<std::function<void()>>& calls) :
                     mutex_(mutex),
-                    message_count_(message_count),
-                    condition_(condition) {
+                    condition_(condition),
+                    calls_(calls),
+                    call_offs_(0) {
     }
 
     virtual ~ActorBase() {
@@ -56,30 +58,34 @@ protected:
 
     virtual void handle(T& message) = 0;
 
-protected:
-
-    void handleTrampoline(T& message) {
-        handle(message);
-    }
-
     void send(const T& data) override final {
         std::unique_lock<std::mutex> lock(mutex_);
         items_.push_back(data);
-        message_count_++;
+        calls_.push_back([&] {handleOne();});
         condition_.notify_all();
     }
 
     void send(T&& data) override final {
         std::unique_lock<std::mutex> lock(mutex_);
         items_.push_back(std::move(data));
-        message_count_++;
+        calls_.push_back([&] {handleOne();});
         condition_.notify_all();
     }
 
+    void handleOne() {
+        handle(items_[call_offs_++]);
+        if (call_offs_ == items_.size()) {
+            call_offs_ = 0;
+            items_.clear();
+        }
+    }
+
+private:
     std::vector<T> items_;
     std::mutex& mutex_;
-    int& message_count_;
     std::condition_variable& condition_;
+    std::vector<std::function<void()>>& calls_;
+    int call_offs_;
 
 };
 
@@ -88,8 +94,7 @@ class Actor: public ActorBase<T_Msgs> ..., public virtual IActorRef<T_Msgs...> {
 public:
 
     Actor() :
-                    ActorBase<T_Msgs>(mutex_, message_count_, condition_) ...,
-                    message_count_(0) {
+                    ActorBase<T_Msgs>(mutex_, condition_, calls_) ... {
     }
 
     virtual ~Actor() {
@@ -97,36 +102,22 @@ public:
 
     void handleNow() {
         std::unique_lock<std::mutex> lock(mutex_);
-        handle(this->ActorBase<T_Msgs>::items_...);
-        message_count_ = 0;
+        for (auto& call : calls_)
+            call();
+        calls_.clear();
     }
 
     template<typename _Rep, typename _Period>
     void handleWithin(const std::chrono::duration<_Rep, _Period>& timeout) {
         std::unique_lock<std::mutex> lock(mutex_);
-        if (message_count_ == 0)
+        if (calls_.empty())
             condition_.wait_for(lock, timeout);
-        handle(this->ActorBase<T_Msgs>::items_...);
-        message_count_ = 0;
     }
 
 private:
     std::mutex mutex_;
-    int message_count_;
     std::condition_variable condition_;
-
-    template<typename T>
-    void handle(std::vector<T>& items) {
-        for (T& item : items)
-            this->ActorBase<T>::handleTrampoline(item);
-        items.clear();
-    }
-
-    template<typename Head, typename ... Tail>
-    void handle(std::vector<Head>& head, std::vector<Tail>& ... tail) {
-        handle(head);
-        handle(tail...);
-    }
+    std::vector<std::function<void()>> calls_;
 
 };
 
