@@ -28,6 +28,7 @@
 #include <string>
 #include <memory>
 
+#include <thread>
 #include <actors/Actor.h>
 
 using namespace std;
@@ -50,13 +51,20 @@ public:
 int main() {
 
     StringIntActor actor;
+
     ActorRef<string, int>& actorRef = actor;
 
-    actorRef.send(string("abc"));
-    actorRef.send(1);
+    auto actorThread = std::thread([&actor] {
+        actor.handleWithin(milliseconds(1000));
+    });
 
-    actor.handleNow();
-    actor.handleWithin(milliseconds(100));
+    auto senderThread = std::thread([&actorRef] {
+        actorRef.send(string("abc"));
+        actorRef.send(1);
+    });
+
+    actorThread.join();
+    senderThread.join();
 
 }
 
