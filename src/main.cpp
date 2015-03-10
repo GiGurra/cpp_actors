@@ -54,17 +54,31 @@ int main() {
 
     ActorRef<string, int>& actorRef = actor;
 
-    auto actorThread = std::thread([&actor] {
-        actor.handleWithin(milliseconds(1000));
-    });
+    IActorRef<string>& stringActor = actor;
+    IActorRef<int>& intActor = actor;
 
     auto senderThread = std::thread([&actorRef] {
         actorRef.send(string("abc"));
         actorRef.send(1);
     });
 
+    auto intSenderThread = std::thread([&intActor] {
+        intActor.send(123);
+    });
+
+    auto stringSenderThread = std::thread([&stringActor] {
+        stringActor.send("123");
+    });
+
+    this_thread::sleep_for(milliseconds(100));
+    auto actorThread = std::thread([&actor] {
+        actor.handleNow();
+    });
+
     actorThread.join();
     senderThread.join();
+    intSenderThread.join();
+    stringSenderThread.join();
 
 }
 

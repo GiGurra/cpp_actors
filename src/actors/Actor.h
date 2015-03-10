@@ -32,16 +32,24 @@
 #include <mutex>
 #include <vector>
 
+#include <actors/IActorRef.h>
+
 namespace actors {
 
 template<class T>
-class ActorMessageBuffer {
+class ActorBase: public IActorRef<T> {
 public:
 
-    ActorMessageBuffer() {
+    ActorBase(
+            std::mutex& mutex,
+            int& message_count,
+            std::condition_variable& condition) :
+                    mutex_(mutex),
+                    message_count_(message_count),
+                    condition_(condition) {
     }
 
-    virtual ~ActorMessageBuffer() {
+    virtual ~ActorBase() {
     }
 
 protected:
@@ -54,26 +62,39 @@ protected:
         handle(message);
     }
 
-    void send(const T& data) {
+    void send(const T& data) override final {
+        std::unique_lock<std::mutex> lock(mutex_);
         items_.push_back(data);
+        message_count_++;
+        condition_.notify_all();
     }
 
-    void send(T&& data) {
+    void send(T&& data) override final {
+        std::unique_lock<std::mutex> lock(mutex_);
         items_.push_back(std::move(data));
+        message_count_++;
+        condition_.notify_all();
     }
 
     std::vector<T> items_;
+    std::mutex& mutex_;
+    int& message_count_;
+    std::condition_variable& condition_;
 
 };
 
 template<class ... MsgType>
-class ActorRef: public ActorMessageBuffer<MsgType> ... {
+class ActorRef: public ActorBase<MsgType> ... {
 public:
 
     ActorRef(
             std::mutex& mutex,
             int& message_count,
             std::condition_variable& condition) :
+                    ActorBase<MsgType>(
+                            mutex,
+                            message_count,
+                            condition) ...,
                     mutex_(mutex),
                     message_count_(message_count),
                     condition_(condition) {
@@ -81,18 +102,12 @@ public:
 
     template<typename T>
     void send(const T& t) {
-        std::unique_lock<std::mutex> lock(mutex_);
-        this->ActorMessageBuffer<T>::send(t);
-        message_count_++;
-        condition_.notify_all();
+        this->ActorBase<T>::send(t);
     }
 
     template<typename T>
     void send(T&& t) {
-        std::unique_lock<std::mutex> lock(mutex_);
-        this->ActorMessageBuffer<T>::send(t);
-        message_count_++;
-        condition_.notify_all();
+        this->ActorBase<T>::send(t);
     }
 
 private:
@@ -116,7 +131,7 @@ public:
 
     void handleNow() {
         std::unique_lock<std::mutex> lock(mutex_);
-        handle(this->ActorMessageBuffer<MsgTypes>::items_...);
+        handle(this->ActorBase<MsgTypes>::items_...);
         message_count_ = 0;
     }
 
@@ -125,7 +140,7 @@ public:
         std::unique_lock<std::mutex> lock(mutex_);
         if (message_count_ == 0)
             condition_.wait_for(lock, timeout);
-        handle(this->ActorMessageBuffer<MsgTypes>::items_...);
+        handle(this->ActorBase<MsgTypes>::items_...);
         message_count_ = 0;
     }
 
@@ -137,7 +152,7 @@ private:
     template<typename T>
     void handle(std::vector<T>& items) {
         for (T& item : items)
-            this->ActorMessageBuffer<T>::handleTrampoline(item);
+            this->ActorBase<T>::handleTrampoline(item);
         items.clear();
     }
 
