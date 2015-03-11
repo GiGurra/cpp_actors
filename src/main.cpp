@@ -29,6 +29,8 @@
 #include <iostream>
 #include <string>
 
+#include <thread>
+
 using namespace std;
 using namespace chrono;
 using namespace actors;
@@ -68,8 +70,11 @@ int main() {
 /*
     actor.handleNow();
 */
+
+    this_thread::sleep_for(milliseconds(1000));
+/*
     ActorContext::default_instance()->signalStop();
     ActorContext::default_instance()->join();
-
+*/
 }
 
