@@ -59,14 +59,16 @@ int main() {
 
     ref2.send(string("ABC"));
     ref2.send(2);
-
+/*
     actor.handleNow();
     actor.handleNow();
-
+*/
     ref2.send(string("XYZ"));
     ref2.send(3);
-
+/*
     actor.handleNow();
+*/
+    ActorContext::default_instance()->signalStop();
 
 }
 

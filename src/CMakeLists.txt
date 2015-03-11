@@ -8,7 +8,15 @@ include_directories(
 	${CMAKE_CURRENT_SOURCE_DIR}
 )
 
-add_executable(
-	${PROJECT_NAME}
+set(SOURCES 
+	actors/ActorContext.cpp
+)
+
+add_library(${PROJECT_NAME}
+	${SOURCES}
+)
+
+add_executable(${PROJECT_NAME}_test
 	main.cpp
+	${SOURCES}
 )
