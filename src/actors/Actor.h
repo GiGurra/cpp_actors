@@ -63,7 +63,7 @@ protected:
 
     void send(T&& data) override final {
         context_->post(actor_ptr_, [this, data] {
-            T message = data;
+            T message = std::move(data);
             handle(message);
         });
     }
