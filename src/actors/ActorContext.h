@@ -22,6 +22,7 @@ public:
 
     void post(void* readyActor, std::function<void()> call);
     void signalStop();
+    void join();
 
 private:
     class imp;

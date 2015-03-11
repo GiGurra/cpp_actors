@@ -69,6 +69,7 @@ int main() {
     actor.handleNow();
 */
     ActorContext::default_instance()->signalStop();
+    ActorContext::default_instance()->join();
 
 }
 

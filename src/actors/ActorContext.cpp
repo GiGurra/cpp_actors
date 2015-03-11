@@ -129,6 +129,10 @@ void ActorContext::signalStop() {
     imp_->signalStop();
 }
 
+void ActorContext::join() {
+    imp_->join();
+}
+
 void ActorContext::post(void* readyActor, function<void()> call) {
     imp_->post(readyActor, call);
 }
