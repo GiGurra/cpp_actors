@@ -56,7 +56,6 @@ public:
     }
 
     void join() {
-        unique_lock<mutex> lock(join_mutex_);
         for (auto& t : threads_)
             t.join();
         threads_.clear();
@@ -66,7 +65,6 @@ private:
     const int n_threads_;
 
     mutex mutex_;
-    mutex join_mutex_;
 
     vector<pair<void*, Call>> queued_;
     set<void*> acting_;
