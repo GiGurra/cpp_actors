@@ -67,8 +67,5 @@ int main() {
 
     this_thread::sleep_for(milliseconds(1000));
 
-    ActorContext::default_instance()->signalStop();
-    ActorContext::default_instance()->join();
-
 }
 
